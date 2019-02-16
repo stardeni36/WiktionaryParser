@@ -30,7 +30,7 @@ class WiktionaryParser(object):
         self.current_word = None
         self.PARTS_OF_SPEECH = copy(PARTS_OF_SPEECH)
         self.RELATIONS = copy(RELATIONS)
-        self.INCLUDED_ITEMS = self.RELATIONS + self.PARTS_OF_SPEECH + ['etymology', 'pronunciation']
+        self.INCLUDED_ITEMS = self.RELATIONS + self.PARTS_OF_SPEECH + ['etymology', 'pronunciation', 'translations']
 
     def include_part_of_speech(self, part_of_speech):
         part_of_speech = part_of_speech.lower()
@@ -77,6 +77,8 @@ class WiktionaryParser(object):
             checklist = ['etymology']
         elif content_type == 'pronunciation':
             checklist = ['pronunciation']
+        elif content_type == 'translations':
+            checklist = ['translations']
         elif content_type == 'definitions':
             checklist = self.PARTS_OF_SPEECH
             if self.language == 'chinese':
@@ -116,6 +118,7 @@ class WiktionaryParser(object):
             'etymologies': self.parse_etymologies(word_contents),
             'related': self.parse_related_words(word_contents),
             'pronunciations': self.parse_pronunciations(word_contents),
+            'translations': self.parse_translations(word_contents),
         }
         json_obj_list = self.map_to_object(word_data)
         return json_obj_list
@@ -148,6 +151,21 @@ class WiktionaryParser(object):
                     pronunciation_text.append(list_element.text.strip())
             pronunciation_list.append((pronunciation_index, pronunciation_text, audio_links))
         return pronunciation_list
+
+    ## my addition
+    def parse_translations(self, word_contents):
+        translation_id_list = self.get_id_list(word_contents, 'translations')
+        translation_list = []
+        for trans_index, trans_id, trans_type in translation_id_list:
+            words = []
+            span_tag = self.soup.find_all('span', {'id': trans_id})[0]
+            parent_tag = span_tag.parent
+            while not parent_tag.find_all('li'):
+                parent_tag = parent_tag.find_next_sibling()
+            for list_tag in parent_tag.find_all('li'):
+                words.append(list_tag.text)
+            translation_list.append((trans_index, words, trans_type))
+        return translation_list
 
     def parse_definitions(self, word_contents):
         definition_id_list = self.get_id_list(word_contents, 'definitions')
@@ -248,6 +266,8 @@ class WiktionaryParser(object):
                         if related_word_index.startswith(definition_index):
                             def_obj.related_words.append(RelatedWord(relation_type, related_words))
                     data_obj.definition_list.append(def_obj)
+            for translation_index, translation_words, translation_type in word_data['translations']:
+                data_obj.translation_list = translation_words # here
             json_obj_list.append(data_obj.to_json())
         return json_obj_list
 
